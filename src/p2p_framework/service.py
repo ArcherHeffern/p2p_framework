@@ -141,8 +141,12 @@ def network_handler_function(
                 while True:
                     o = await marshaller.load_stream(r)
                     if o:
-                        for q in group_data[type(o)].values():
-                            q.put(MsgFrom(peer_id=peer_id, msg=o))
+                        qs = group_data.get(type(o))
+                        if not qs:
+                            print(f"Warning: No event handler for {type(o)}")
+                        else:
+                            for q in group_data[type(o)].values():
+                                q.put(MsgFrom(peer_id=peer_id, msg=o))
             finally:
                 # treat EOF as disconnect
                 await event_queue.put(
@@ -301,7 +305,7 @@ class Service:
                 (group_data, network_queue, self.addr, self.known_addresses or []),
             )
         )
-        for target, args in processes_to_run:
+        for i, (target, args) in enumerate(processes_to_run):
             p = Process(
                 target=target,
                 args=(*args,),
@@ -309,7 +313,10 @@ class Service:
             )
             p.start()
             self.processes.append(p)
-            self.log(f"Started {args[0]}")
+            if i == len(processes_to_run) - 1:
+                print("Started networker")
+            else:
+                self.log(f"Started {args[0]}")
 
     def join(self):
         for p in self.processes:

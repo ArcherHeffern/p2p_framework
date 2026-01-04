@@ -9,7 +9,7 @@ from p2p_framework import (
     MsgTo,
     MsgFrom,
     PeerConnected,
-    marshaller, 
+    marshaller,
     request_handler,
     event_handler,
     periodic,
@@ -66,16 +66,16 @@ async def frog_msg_handler(
     broadcaster: Networker,
 ):
     print(frog.msg.heller)
-    # broadcaster.send(frog.peer_id, FrogResponse("Goodbyer"))
+    broadcaster.send(frog.peer_id, FrogResponse("Goodbyer"))
 
 
-# @request_handler("frog_response_handler", FrogResponse)
-# async def frog_response_handler(
-#     frog: MsgFrom[FrogResponse],
-#     event_queue: EventQueue,
-#     broadcaster: Networker,
-# ):
-#     print(frog.msg.goodbyer)
+@request_handler("frog_response_handler", FrogResponse)
+async def frog_response_handler(
+    frog: MsgFrom[FrogResponse],
+    event_queue: EventQueue,
+    broadcaster: Networker,
+):
+    print(frog.msg.goodbyer)
 
 
 @event_handler("peer_connected_handler", PeerConnected)
@@ -94,7 +94,10 @@ def main() -> None:
     s1 = Service(
         config={
             "hello_world": ProcessGroup(
-                frog_periodic, frog_handler, frog_msg_handler, peer_connected_handler
+                frog_periodic,
+                frog_handler,
+                peer_connected_handler,
+                frog_response_handler,
             )
         },
         debug=True,
@@ -103,7 +106,8 @@ def main() -> None:
     s2 = Service(
         config={
             "hello_world": ProcessGroup(
-                frog_periodic, frog_handler, frog_msg_handler, peer_connected_handler
+                frog_msg_handler,
+                peer_connected_handler,
             )
         },
         debug=True,
