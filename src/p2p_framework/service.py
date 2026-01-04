@@ -37,6 +37,7 @@ from .decorator_types import (
     ProcessGroup,
     RequestHandlerAndData,
     ThreadGroup,
+    WorkerHandlerAndData,
 )
 
 from .event_queue import (
@@ -283,6 +284,10 @@ class Service:
                                 )
                                 processes_to_run.append((target, args))
                             case EventHandlerAndData() | RequestHandlerAndData():
+                                if not marshaller.has_registered(process.t):
+                                    raise Exception(
+                                        f"Type {type(process.t)} has not been registered. Remember to do marshaller.register(name, type)"
+                                    )
                                 if not group_data.get(process.t):
                                     group_data[process.t] = {}
                                 this_q = Queue()
@@ -295,6 +300,15 @@ class Service:
                                     network_queue,
                                 )
                                 processes_to_run.append((target, args))
+                            case WorkerHandlerAndData():
+                                if process.listen_for:
+                                    if not marshaller.has_registered(
+                                        process.listen_for
+                                    ):
+                                        raise Exception(
+                                            f"Type {type(process.listen_for)} has not been registered. Remember to do marshaller.register(name, type)"
+                                        )
+                                ...
                             case _:
                                 raise NotImplementedError(
                                     f"{type(process)} not implemented"

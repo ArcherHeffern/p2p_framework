@@ -45,12 +45,14 @@ def periodic(
     return decorator
 
 
-def worker[T](name: str, listen_for: Optional[type[T]]):
+def worker[T: MsgTo](
+    name: str, listen_for: Optional[type[T]], ignore_stale: bool = True
+):
     def decorator(func: WorkerHandler[T]) -> WorkerHandlerAndData[T]:
         from p2p_framework.service import MAPPINGS
 
         MAPPINGS[name] = func
-        return WorkerHandlerAndData(name, func, listen_for)
+        return WorkerHandlerAndData(name, func, listen_for, ignore_stale)
 
     return decorator
 

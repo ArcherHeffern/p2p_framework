@@ -38,9 +38,10 @@ type WorkerHandler[T] = Callable[
 
 
 @dataclass
-class WorkerHandlerAndData[T](HandlerAndData):
+class WorkerHandlerAndData[T: MsgTo](HandlerAndData):
     handler: WorkerHandler[T]
-    t: Optional[type[T]]
+    listen_for: Optional[type[T]]
+    ignore_stale: bool
 
 
 type EventHandler[T] = Callable[[T, EventQueue, Networker], Awaitable[None]]
