@@ -50,6 +50,7 @@ class SolutionFound(MsgTo):
 marshaller.register("frog", Frog)
 marshaller.register("frog_msg", FrogMsg)
 marshaller.register("frog_response", FrogResponse)
+marshaller.register("solution_found", SolutionFound)
 
 
 # ============
@@ -107,8 +108,12 @@ async def solution_found_handler(
     networker: Networker,
     data: dict,
 ):
+    if not "solution" in data:
+        data["solution"] = None
+    print("Solution: ", data["solution"])
     if maybe_solution_found:
         print(f"Solution recieved: {maybe_solution_found.solution}")
+        data["solution"] = maybe_solution_found.solution
     for _ in range(10):
         await sleep(0.1)
 
@@ -124,6 +129,7 @@ def main() -> None:
                 frog_handler,
                 peer_connected_handler,
                 frog_response_handler,
+                solution_found_handler,
             )
         },
         debug=True,

@@ -27,6 +27,7 @@ from p2p_framework.types import (
     INetAddress,
     MsgFrom,
     MsgTo,
+    PeerConnected,
     PeerDisconnected,
     PeerId,
 )
@@ -49,6 +50,8 @@ from marshaller_library import DataclassMarshaller
 
 marshaller = DataclassMarshaller[MsgTo]()
 marshaller.register("msg_to", MsgTo)
+marshaller.register("peer_connected", PeerConnected)
+marshaller.register("peer_disconnected", PeerDisconnected)
 
 
 def periodic_function(
@@ -221,15 +224,43 @@ def network_handler_function(
                             f"Type {type(event)} is not supported"
                         )
             await asyncio.sleep(0.1)
-            # Handle inbound_queue event dispatching
-            # if not inbound_queue.empty():
-            #     event = await inbound_queue.get()
-            #     t = type(event.msg)
-            #     if t in group_data:
-            #         for q in group_data[t].values():
-            #             q.put(event)
 
-            # Handle event_queue event dispatching
+            # TODO: Handle event_queue event dispatching
+
+    run(f())
+
+
+def worker_handler_function(
+    func_name: str,
+    maybe_event_q: Optional[Queue],
+    group_data: dict[type, dict[str, Queue]],
+    network_q: Queue,
+    ignore_stale: bool,
+):
+    from .service import MAPPINGS
+
+    func: EventHandler = MAPPINGS[func_name]  # type: ignore
+    event_queue = EventQueue(group_data)
+    networker = Networker(network_q)
+    d = {}
+
+    async def f():
+
+        while True:
+            maybe_event = None
+            if ignore_stale:
+                while maybe_event_q and not maybe_event_q.empty():
+                    maybe_event = maybe_event_q.get_nowait()
+            else:
+                if maybe_event_q and maybe_event_q.empty():
+                    maybe_event = maybe_event_q.get_nowait()
+            await func(
+                maybe_event,
+                event_queue,
+                networker,
+                d,
+            )
+            await asyncio.sleep(0.1)
 
     run(f())
 
@@ -284,14 +315,19 @@ class Service:
                                 )
                                 processes_to_run.append((target, args))
                             case EventHandlerAndData() | RequestHandlerAndData():
-                                if not marshaller.has_registered(process.t):
+                                if not marshaller.is_registered(process.t):
                                     raise Exception(
-                                        f"Type {type(process.t)} has not been registered. Remember to do marshaller.register(name, type)"
+                                        f"Type {process.t} has not been registered. Remember to do marshaller.register(name, type)"
                                     )
                                 if not group_data.get(process.t):
                                     group_data[process.t] = {}
+                                if process.name in group_data[process.t]:
+                                    raise Exception(
+                                        f"Name collision: There can only be one handler with name '{process.name}."
+                                    )
                                 this_q = Queue()
                                 group_data[process.t][process.name] = this_q
+
                                 target = event_handler_function
                                 args = (
                                     process.name,
@@ -302,13 +338,32 @@ class Service:
                                 processes_to_run.append((target, args))
                             case WorkerHandlerAndData():
                                 if process.listen_for:
-                                    if not marshaller.has_registered(
-                                        process.listen_for
-                                    ):
+                                    if not marshaller.is_registered(process.listen_for):
                                         raise Exception(
-                                            f"Type {type(process.listen_for)} has not been registered. Remember to do marshaller.register(name, type)"
+                                            f"Type {process.listen_for} has not been registered. Remember to do marshaller.register(name, type)"
                                         )
-                                ...
+                                    if not group_data.get(process.listen_for):
+                                        group_data[process.listen_for] = {}
+                                    if process.name in group_data[process.listen_for]:
+                                        raise Exception(
+                                            f"Name collision: There can only be one handler with name '{process.name}."
+                                        )
+                                    maybe_this_q = Queue()
+                                    group_data[process.listen_for][
+                                        process.name
+                                    ] = maybe_this_q
+                                else:
+                                    maybe_this_q = None
+
+                                target = worker_handler_function
+                                args = (
+                                    process.name,
+                                    maybe_this_q,
+                                    group_data,
+                                    network_queue,
+                                    process.ignore_stale,
+                                )
+                                processes_to_run.append((target, args))
                             case _:
                                 raise NotImplementedError(
                                     f"{type(process)} not implemented"
