@@ -4,8 +4,8 @@ from typing import Callable, Optional
 
 from p2p_framework.types import (
     MsgTo,
-    PeerConnected,
-    PeerDisconnected,
+    InboundPeerConnected,
+    InboundPeerDisconnected,
 )
 from p2p_framework.decorator_types import (
     PeriodicHandler,
@@ -57,7 +57,9 @@ def worker[T: MsgTo](
     return decorator
 
 
-def event_handler[T: MsgTo | PeerConnected | PeerDisconnected](name: str, t: type[T]):
+def event_handler[T: MsgTo | InboundPeerConnected | InboundPeerDisconnected](
+    name: str, t: type[T]
+):
     def decorator(func: EventHandler[T]) -> EventHandlerAndData[T]:
         from p2p_framework.service import MAPPINGS
 

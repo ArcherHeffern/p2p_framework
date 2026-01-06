@@ -10,14 +10,30 @@ type PeerId = int
 
 
 @dataclass(frozen=True)
-class PeerConnected:
-    peer_id: PeerId
-    address: INetAddress
-    inbound: bool
+class PeerEvent(ABC): ...
 
 
 @dataclass(frozen=True)
-class PeerDisconnected:
+class InboundPeerConnected(PeerEvent):
+    peer_id: PeerId
+    address: INetAddress
+
+
+@dataclass(frozen=True)
+class InboundPeerDisconnected(PeerEvent):
+    peer_id: PeerId
+    address: INetAddress
+    reason: str
+
+
+@dataclass(frozen=True)
+class OutboundPeerConnected(PeerEvent):
+    peer_id: PeerId
+    address: INetAddress
+
+
+@dataclass(frozen=True)
+class OutboundPeerDisconnected(PeerEvent):
     peer_id: PeerId
     address: INetAddress
     reason: str

@@ -13,7 +13,7 @@ from asyncio import (
 )
 from multiprocessing import Process, Queue
 from time import sleep
-from typing import Callable, NoReturn, Optional
+from typing import Callable, Literal, NoReturn, Optional
 
 from p2p_framework.networker import (
     Broadcast,
@@ -27,8 +27,11 @@ from p2p_framework.types import (
     INetAddress,
     MsgFrom,
     MsgTo,
-    PeerConnected,
-    PeerDisconnected,
+    InboundPeerConnected,
+    InboundPeerDisconnected,
+    OutboundPeerConnected,
+    OutboundPeerDisconnected,
+    PeerEvent,
     PeerId,
 )
 from .decorator_types import (
@@ -50,8 +53,8 @@ from marshaller_library import DataclassMarshaller
 
 marshaller = DataclassMarshaller[MsgTo]()
 marshaller.register("msg_to", MsgTo)
-marshaller.register("peer_connected", PeerConnected)
-marshaller.register("peer_disconnected", PeerDisconnected)
+marshaller.register("peer_connected", InboundPeerConnected)
+marshaller.register("peer_disconnected", InboundPeerDisconnected)
 
 
 def periodic_function(
@@ -116,7 +119,7 @@ def network_handler_function(
         peer_id_to_connection: dict[PeerId, Connection] = {}
         address_to_peer_id: dict[INetAddress, PeerId] = {}
         nxt_peer_id = 1
-        event_queue = asyncio.Queue()
+        event_queue: asyncio.Queue[PeerEvent] = asyncio.Queue()
 
         async def disconnect_peer(peer_id: PeerId) -> None:
             conn = peer_id_to_connection.get(peer_id)
@@ -137,7 +140,9 @@ def network_handler_function(
             peer_id_to_connection.pop(peer_id, None)
             address_to_peer_id.pop(address, None)
 
-        async def reader(peer_id: PeerId) -> None:
+        async def reader(
+            peer_id: PeerId, in_or_outbound: Literal["inbound", "outbound"]
+        ) -> None:
             """Read bytes/messages from a peer and emit events back to main."""
             conn = peer_id_to_connection[peer_id]
             r = conn.reader
@@ -153,10 +158,13 @@ def network_handler_function(
                                 q.put(MsgFrom(peer_id=peer_id, msg=o))
             finally:
                 # treat EOF as disconnect
+                e = (
+                    InboundPeerDisconnected
+                    if in_or_outbound == "inbound"
+                    else OutboundPeerDisconnected
+                )
                 await event_queue.put(
-                    PeerDisconnected(
-                        peer_id=peer_id, address=conn.address, reason="eof"
-                    )
+                    e(peer_id=peer_id, address=conn.address, reason="eof")
                 )
                 await disconnect_peer(peer_id)
 
@@ -172,14 +180,14 @@ def network_handler_function(
             if address not in address_to_peer_id:
                 peer_id = nxt_peer_id
                 nxt_peer_id += 1
+                event_queue.put_nowait(InboundPeerConnected(peer_id, address))
 
-                t = create_task(reader(peer_id))
+                t = create_task(reader(peer_id, "inbound"))
                 peer_id_to_connection[peer_id] = Connection(peer_id, address, r, w, t)
                 address_to_peer_id[address] = peer_id
 
         # Waits for connections and adds them to our connection data structures
         s = await start_server(cb, server_address.host, server_address.port)
-        broadcaster = Networker(outbound_queue)
 
         while True:
             # Event Handler
@@ -193,8 +201,11 @@ def network_handler_function(
                                     event.address.host, event.address.port
                                 )
                                 peer_id = nxt_peer_id
+                                event_queue.put_nowait(
+                                    OutboundPeerConnected(peer_id, event.address)
+                                )
                                 nxt_peer_id += 1
-                                t = create_task(reader(peer_id))
+                                t = create_task(reader(peer_id, "outbound"))
                                 peer_id_to_connection[peer_id] = Connection(
                                     peer_id, event.address, r, w, t
                                 )
@@ -225,7 +236,12 @@ def network_handler_function(
                         )
             await asyncio.sleep(0.1)
 
-            # TODO: Handle event_queue event dispatching
+            if not event_queue.empty():
+                event = event_queue.get_nowait()
+                qs = group_data.get(type(event))
+                if qs is not None:
+                    for q in qs.values():
+                        q.put_nowait(event)
 
     run(f())
 

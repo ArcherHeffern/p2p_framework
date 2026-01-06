@@ -14,7 +14,10 @@ from .service import (
 from .types import (
     MsgTo,
     MsgFrom,
-    PeerConnected,
+    InboundPeerConnected,
+    InboundPeerDisconnected,
+    OutboundPeerConnected,
+    OutboundPeerDisconnected,
 )
 from .decorator_types import (
     ThreadGroup,
@@ -22,8 +25,6 @@ from .decorator_types import (
 )
 from .networker import (
     Networker,
-    Connect,
-    Disconnect,
     Broadcast,
     Send,
 )

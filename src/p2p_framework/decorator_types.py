@@ -7,8 +7,8 @@ from p2p_framework.types import (
     HandlerAndData,
     MsgFrom,
     MsgTo,
-    PeerConnected,
-    PeerDisconnected,
+    InboundPeerConnected,
+    InboundPeerDisconnected,
 )
 
 
@@ -50,7 +50,9 @@ type Handler[T] = RequestHandler | PeriodicHandler | WorkerHandler | EventHandle
 
 
 @dataclass
-class EventHandlerAndData[T: MsgTo | PeerConnected | PeerDisconnected](HandlerAndData):
+class EventHandlerAndData[T: MsgTo | InboundPeerConnected | InboundPeerDisconnected](
+    HandlerAndData
+):
     handler: EventHandler[T]
     t: type[T]
 

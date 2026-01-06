@@ -11,7 +11,7 @@ from p2p_framework import (
     INetAddress,
     MsgTo,
     MsgFrom,
-    PeerConnected,
+    InboundPeerConnected,
     marshaller,
     request_handler,
     event_handler,
@@ -92,9 +92,9 @@ async def frog_response_handler(
         event_queue.put(SolutionFound(sol))
 
 
-@event_handler("peer_connected_handler", PeerConnected)
+@event_handler("peer_connected_handler", InboundPeerConnected)
 async def peer_connected_handler(
-    peer_connected: PeerConnected, event_queue: EventQueue, networker: Networker
+    peer_connected: InboundPeerConnected, event_queue: EventQueue, networker: Networker
 ):
     print(
         f"Connected to peer {peer_connected.address} with id {peer_connected.peer_id}"
